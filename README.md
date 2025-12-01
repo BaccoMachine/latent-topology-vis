@@ -30,6 +30,10 @@ To visualize the 32D latent space, we utilize **UMAP**, a manifold learning tech
 
 
 
+https://github.com/user-attachments/assets/5645b59b-5690-4be2-93ed-514c5b76e2ff
+
+
+
 
 ## Interactive Analysis Tool
 
