@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Latent Space Explorer</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    
+    <script src="data.js"></script>
+
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; background: #f4f4f9; }
+        
+        /* --- LAYOUT --- */
+        #plot-container { width: 75%; height: 100%; background: white; border-right: 1px solid #ddd; }
+        #sidebar { width: 25%; padding: 20px; display: flex; flex-direction: column; background: #fafafa; overflow-y: auto; box-shadow: -2px 0 10px rgba(0,0,0,0.05); }
+        
+        /* --- CARDS & INFO --- */
+        h2 { margin: 0 0 15px 0; color: #333; font-size: 1.2rem; text-align: center; }
+        
+        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.08); margin-bottom: 15px; width: 100%; box-sizing: border-box; text-align: center; }
+        
+        .card-title { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 8px; }
+
+        /* Immagine Input */
+        #input-img { 
+            width: 120px; height: 120px; 
+            image-rendering: pixelated; 
+            border: 1px solid #ccc;
+            display: none; margin: 0 auto;
+        }
+        
+        /* Label Grande */
+        #label-display { font-size: 1.4rem; font-weight: bold; color: #333; margin-bottom: 5px; display: block; min-height: 30px;}
+
+        /* --- LATENTE (SOLUZIONE QUADRATI) --- */
+        #latent-canvas {
+            width: 100%;       /* Occupa tutta la larghezza della card */
+            /* LA MAGIA: Forza il rapporto 2:1 (8 col / 4 righe) */
+            aspect-ratio: 2 / 1; 
+            image-rendering: pixelated; 
+            border: 1px solid #eee;
+            background: #000;
+            margin: 0 auto; display: block;
+        }
+
+        /* --- LEGENDA --- */
+        #legend { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-top: 10px; }
+        .legend-item { 
+            display: flex; align-items: center; font-size: 0.8rem; 
+            padding: 4px 8px; background: white; border-radius: 4px; border: 1px solid #eee; cursor: default;
+            width: 100%;
+        }
+        .color-dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; }
+        
+        .hint { color: #888; font-style: italic; text-align: center; margin-top: 50px; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="plot-container"></div>
+
+    <div id="sidebar">
+        <h2>Ispettore</h2>
+        
+        <p id="hint-text" class="hint">Passa il mouse sui punti per esplorare.</p>
+
+        <div id="info-panel" class="hidden">
+            
+            <div class="card">
+                <span class="card-title">Input & Classe</span>
+                <img id="input-img" src="" alt="Input">
+                <span id="label-display"></span>
+            </div>
+
+            <div class="card">
+                <span class="card-title">Attivazione Latente (32D)</span>
+                <canvas id="latent-canvas" width="8" height="4"></canvas>
+                <div style="font-size: 0.7rem; color: #aaa; margin-top: 5px;">Ogni quadratino è un neurone</div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: auto;">
+            <span class="card-title">Legenda Classi</span>
+            <div id="legend"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof myData === 'undefined') {
+                alert("Errore: File data.js non trovato o corrotto.");
+                return;
+            }
+
+            // 1. DEFINIAMO I COLORI FISSI (Palette Tab10)
+            // Questi sono colori ben distinguibili per le 10 classi
+            const PALETTE = [
+                '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+                '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+            ];
+
+            const plotDiv = document.getElementById('plot-container');
+            const hintText = document.getElementById('hint-text');
+            const infoPanel = document.getElementById('info-panel');
+            const inputImg = document.getElementById('input-img');
+            const labelDisplay = document.getElementById('label-display');
+            const latentCanvas = document.getElementById('latent-canvas');
+            const ctx = latentCanvas.getContext('2d');
+            const legendDiv = document.getElementById('legend');
+
+            // --- 2. GENERIAMO LA LEGENDA ---
+            // Troviamo tutte le label uniche nel dataset
+            const uniqueLabels = {};
+            myData.forEach(d => {
+                uniqueLabels[d.label_index] = d.label_name || d.label;
+            });
+
+            // Creiamo l'HTML della legenda
+            Object.keys(uniqueLabels).sort().forEach(idx => {
+                const color = PALETTE[idx % PALETTE.length];
+                const name = uniqueLabels[idx];
+                
+                const item = document.createElement('div');
+                item.className = 'legend-item';
+                item.innerHTML = `<div class="color-dot" style="background:${color}"></div><span>${name}</span>`;
+                legendDiv.appendChild(item);
+            });
+
+            // --- 3. DISEGNAMO IL GRAFICO ---
+            // Assegniamo i colori ai punti in base all'indice della label
+            const pointColors = myData.map(d => PALETTE[d.label_index % PALETTE.length]);
+
+            const trace = {
+                x: myData.map(d => d.umap_x),
+                y: myData.map(d => d.umap_y),
+                mode: 'markers',
+                type: 'scattergl', 
+                text: myData.map(d => d.label_name), 
+                marker: {
+                    size: 6,
+                    color: pointColors, // Usiamo la nostra palette fissa
+                    opacity: 0.7,
+                    line: { width: 0.5, color: 'white' }
+                },
+                customdata: myData.map(d => d.id),
+                hoverinfo: 'none'
+            };
+
+            const layout = {
+                title: 'Esplorazione Spazio Latente',
+                hovermode: 'closest',
+                dragmode: 'pan',
+                margin: { t: 40, r: 20, b: 20, l: 40 }
+            };
+
+            Plotly.newPlot(plotDiv, [trace], layout, { responsive: true });
+
+            // --- 4. GESTIONE HOVER ---
+            plotDiv.on('plotly_hover', (data) => {
+                const pointIndex = data.points[0].customdata;
+                const d = myData[pointIndex];
+
+                // UI Update
+                hintText.style.display = 'none';
+                infoPanel.classList.remove('hidden');
+                inputImg.style.display = 'block';
+
+                // Dati
+                inputImg.src = d.image_base64;
+                labelDisplay.innerText = d.label_name || d.label;
+                // Colora il testo della label con il colore della classe
+                labelDisplay.style.color = PALETTE[d.label_index % PALETTE.length];
+
+                drawLatent(d.latent_vector);
+            });
+
+            // --- 5. DISEGNO LATENTE (Ora Quadrati!) ---
+            function drawLatent(vector) {
+                ctx.clearRect(0, 0, 8, 4);
+                
+                const min = Math.min(...vector);
+                const max = Math.max(...vector);
+
+                vector.forEach((val, i) => {
+                    const x = i % 8;
+                    const y = Math.floor(i / 8);
+
+                    let intensity = (val - min) / (max - min);
+                    if (isNaN(intensity)) intensity = 0;
+
+                    // Colore: Verde Matrix
+                    const color = Math.floor(intensity * 255);
+                    ctx.fillStyle = `rgb(0, ${color}, 0)`;
+                    
+                    // Disegna quadrato 1x1 (la canvas scala automaticamente)
+                    ctx.fillRect(x, y, 1, 1);
+                    
+                    // Bordo sottile per separare i pixel (opzionale)
+                    // ctx.strokeStyle = '#000';
+                    // ctx.lineWidth = 0.1;
+                    // ctx.strokeRect(x, y, 1, 1);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
