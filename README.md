@@ -1,6 +1,13 @@
 
 # Neural Manifold Projection: Interactive Analysis of High-Dimensional Embeddings
 
+
+
+
+https://github.com/user-attachments/assets/fe38eac0-8588-48e3-bc63-68d91c543a0e
+
+
+
 ## Abstract
 This project implements an end-to-end framework for the topological analysis of deep neural representations. By training a **Convolutional Autoencoder (CAE)** on the Fashion-MNIST dataset, the system extracts high-level semantic feature vectors (embeddings) from image data. 
 
@@ -20,6 +27,9 @@ The model is a deep Convolutional Autoencoder designed to learn a compressed, de
 
 ### 2. Manifold Projection (UMAP)
 To visualize the 32D latent space, we utilize **UMAP**, a manifold learning technique grounded in Riemannian geometry and algebraic topology. Unlike linear methods (e.g., PCA), UMAP constructs a high-dimensional fuzzy topological structure and optimizes a low-dimensional graph to maintain structural isomorphism. This preserves both local neighborhood relations and global structure.
+
+
+
 
 ## Interactive Analysis Tool
 
